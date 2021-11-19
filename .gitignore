@@ -3,3 +3,6 @@ data
 testing_data
 base_output.pth
 dataset_generate_not_to_submit.py
+re_rank.py
+ls_output.pth
+run_test_rerank.py

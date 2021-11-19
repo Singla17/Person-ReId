@@ -118,6 +118,52 @@ def train_one_epoch(epoch, model, loader, optimizer, loss_fn,verbose=False):
 
     return OrderedDict([('train_loss', epoch_loss.data.item()), ("train_accuracy", epoch_accuracy.data.item())])
 
+def train_one_epoch_AMS(epoch, model, loader, optimizer, loss_fn,verbose=False):
+    """
+    This method implements training of model for one epoch with AM Softmax loss function
+    """
+    
+    batch_time_m = AverageMeter()
+    data_time_m = AverageMeter()
+
+    model.train()
+    epoch_accuracy = 0
+    epoch_loss = 0
+    end = time.time()
+
+    for index,(data, target) in enumerate(loader):
+        data, target = data.to(device), target.to(device)
+        data_time_m.update(time.time() - end)
+
+        optimizer.zero_grad()
+        (output,classes) = model(data)
+        score = 0.0
+        sm = nn.Softmax(dim=1)
+        for k, v in classes.items():
+            score += sm(classes[k])
+        _, preds = torch.max(score.data, 1)
+        
+        loss = 0.0
+        for k,v in output.items():
+            name = 'classifier'+str(k)
+            c = getattr(model,name)
+            c = getattr(c,'classifier')
+            loss += loss_fn(output[k], target,c)
+        loss.backward()
+
+        optimizer.step()
+
+        batch_time_m.update(time.time() - end)
+        acc = (preds == target.data).float().mean()
+
+        epoch_loss += loss/len(loader)
+        epoch_accuracy += acc / len(loader)
+
+    if verbose:
+        print("The loss at epoch "+str(epoch)+ " was "+str(epoch_loss.data.item())+ " and the training accuracy is "+str(epoch_accuracy.data.item()))
+
+    return OrderedDict([('train_loss', epoch_loss.data.item()), ("train_accuracy", epoch_accuracy.data.item())])
+
 def visualization(loss_arr,epo,loss):
   """
   This is to visualize the training curves
@@ -165,6 +211,33 @@ def training(model,optimizer,criterion,scheduler,num_epochs,verbose,blocks,unfre
     
     return model
 
+def training_AMS(model,optimizer,criterion,scheduler,num_epochs,verbose,blocks,unfreeze_after,train_loader):
+    """
+    Simulates the training of model
+    """
+    unfrozen_blocks = 0
+    train_loss=[]
+    train_accuracy=[]
+    
+    for epoch in range(num_epochs):
+        if epoch%unfreeze_after==0:
+            unfrozen_blocks += 1
+            model = unfreeze_blocks(model,blocks, unfrozen_blocks)
+            optimizer.param_groups[0]['lr'] *= lr_decay 
+            trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+            print("Unfrozen Blocks: {}, Current lr: {}, Trainable Params: {}".format(unfrozen_blocks, 
+                                                                                 optimizer.param_groups[0]['lr'], 
+                                                                                 trainable_params))
+    
+        train_metrics = train_one_epoch_AMS(epoch, model, train_loader, optimizer, criterion,verbose=verbose)
+        train_loss.append(train_metrics["train_loss"])
+        train_accuracy.append(train_metrics["train_accuracy"])
+    
+    visualization(train_loss, num_epochs, True)
+    visualization(train_accuracy, num_epochs, False)
+    
+    return model
+
 def freeze_all_blocks(model,blocks):
     """
     This method is used to freeze all 12[as per the original publication] blocks of a ViT
@@ -183,6 +256,7 @@ def unfreeze_blocks(model, blocks, amount= 1):
         for param in block.parameters():
             param.requires_grad=True
     return model
+
 
 
 if __name__ == "__main__":

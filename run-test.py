@@ -32,7 +32,7 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def extract_feature(model,dataloaders):
+def extract_feature(model,dataloaders,device):
     """
     Used to get the features/representation of queryset and galleryset
     """
@@ -123,11 +123,11 @@ if __name__ == "__main__":
     
     # Extract Query Features
     
-    query_feature= extract_feature(model,query_loader)
+    query_feature= extract_feature(model,query_loader,device)
     
     # Extract Gallery Features
     
-    gallery_feature = extract_feature(model,gallery_loader)
+    gallery_feature = extract_feature(model,gallery_loader,device)
     
     # Retrieve labels
     
