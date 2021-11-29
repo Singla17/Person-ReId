@@ -7,3 +7,5 @@ re_rank.py
 ls_output.pth
 run_test_rerank.py
 ams_pool_sum_triplet_output.pth
+base_output.pth
+visualisation/
