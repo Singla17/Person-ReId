@@ -6,3 +6,4 @@ dataset_generate_not_to_submit.py
 re_rank.py
 ls_output.pth
 run_test_rerank.py
+ams_pool_sum_triplet_output.pth

@@ -11,7 +11,8 @@ import os
 import time
 import random
 
-from model import LATransformer
+from model import LATransformer, LATransformer_AMSpoolsumtriplet
+from utils import AM_Softmax
 import timm
 import numpy as np
 from collections import OrderedDict
@@ -55,7 +56,8 @@ def parse_args():
                                                         help="Path for the model weights")
     parser.add_argument('-c', '--num_classes', type=int, default=62, required=True, \
                                                         help="Number of classes in trainset")
-    
+    parser.add_argument('-m', '--is_model_baseline', type=bool, default=True, required=True, \
+                                                        help="To choose which model to invoke baseline/improved")
         
     args = parser.parse_args()
     return args
@@ -118,7 +120,7 @@ def train_one_epoch(epoch, model, loader, optimizer, loss_fn,verbose=False):
 
     return OrderedDict([('train_loss', epoch_loss.data.item()), ("train_accuracy", epoch_accuracy.data.item())])
 
-def train_one_epoch_AMS(epoch, model, loader, optimizer, loss_fn,verbose=False):
+def train_one_epoch_AMS_triplet(epoch, model, loader, optimizer, loss_fn,loss2,verbose=False):
     """
     This method implements training of model for one epoch with AM Softmax loss function
     """
@@ -136,7 +138,7 @@ def train_one_epoch_AMS(epoch, model, loader, optimizer, loss_fn,verbose=False):
         data_time_m.update(time.time() - end)
 
         optimizer.zero_grad()
-        (output,classes) = model(data)
+        (pred,output,classes) = model(data)
         score = 0.0
         sm = nn.Softmax(dim=1)
         for k, v in classes.items():
@@ -149,6 +151,7 @@ def train_one_epoch_AMS(epoch, model, loader, optimizer, loss_fn,verbose=False):
             c = getattr(model,name)
             c = getattr(c,'classifier')
             loss += loss_fn(output[k], target,c)
+            loss += loss2(pred[k],target)
         loss.backward()
 
         optimizer.step()
@@ -211,7 +214,7 @@ def training(model,optimizer,criterion,scheduler,num_epochs,verbose,blocks,unfre
     
     return model
 
-def training_AMS(model,optimizer,criterion,scheduler,num_epochs,verbose,blocks,unfreeze_after,train_loader):
+def training_AMS_triplet(model,optimizer,criterion,scheduler,num_epochs,verbose,blocks,unfreeze_after,train_loader,loss2):
     """
     Simulates the training of model
     """
@@ -229,7 +232,7 @@ def training_AMS(model,optimizer,criterion,scheduler,num_epochs,verbose,blocks,u
                                                                                  optimizer.param_groups[0]['lr'], 
                                                                                  trainable_params))
     
-        train_metrics = train_one_epoch_AMS(epoch, model, train_loader, optimizer, criterion,verbose=verbose)
+        train_metrics = train_one_epoch_AMS_triplet(epoch, model, train_loader, optimizer, criterion,loss2,verbose=verbose)
         train_loss.append(train_metrics["train_loss"])
         train_accuracy.append(train_metrics["train_accuracy"])
     
@@ -268,6 +271,7 @@ if __name__ == "__main__":
     inp_path = args.inp_path
     out_path = args.out_path
     num_classes = args.num_classes
+    model_type = args.is_model_baseline
     
     """
     Checks the availibility of a GPU
@@ -276,6 +280,10 @@ if __name__ == "__main__":
     print("Using {}".format(device))
     set_seed(0)
     
+    use_gpu=False
+    if device=='cuda':
+        use_gpu=True
+        
     """
     Hyper-parameters
     """
@@ -328,26 +336,50 @@ if __name__ == "__main__":
     num_la_blocks = 14  ## Number of locally aware classifiers in the training model.
     BLOCKS = 12  ## Not to be touched
     INT_DIM = 768   ## Latent Vector Size [internal to ViT]  ## Not to be touched
-    model = LATransformer(vit_base, lmbd,num_classes,num_la_blocks,BLOCKS,INT_DIM).to(device)
-    print(model.eval())
     
-    # loss function
-    criterion = nn.CrossEntropyLoss()
+    if model_type:
+        model = LATransformer(vit_base, lmbd,num_classes,num_la_blocks,BLOCKS,INT_DIM).to(device)
+        print(model.eval())
+        
+        # loss function
+        criterion = nn.CrossEntropyLoss()
+        
+        # optimizer
+        optimizer = optim.Adam(model.parameters(),weight_decay=5e-4, lr=lr)
+        
+        # scheduler
+        scheduler = StepLR(optimizer, step_size=1, gamma=gamma)
+        freeze_all_blocks(model,BLOCKS)
+        
+        """
+        Training Begins
+        """
+        
+        print("Training Begins...")
+        model = training(model,optimizer,criterion,scheduler,num_epochs,True,BLOCKS,unfreeze_after,train_loader)
+        print("Training Completed")
+        torch.save(model.cpu().state_dict(), out_path)
     
-    # optimizer
-    optimizer = optim.Adam(model.parameters(),weight_decay=5e-4, lr=lr)
-    
-    # scheduler
-    scheduler = StepLR(optimizer, step_size=1, gamma=gamma)
-    freeze_all_blocks(model,BLOCKS)
-    
-    """
-    Training Begins
-    """
-    
-    print("Training Begins...")
-    model = training(model,optimizer,criterion,scheduler,num_epochs,True,BLOCKS,unfreeze_after,train_loader)
-    print("Training Completed")
-    torch.save(model.cpu().state_dict(), out_path)
+    else:
+        model = LATransformer_AMSpoolsumtriplet(vit_base, lmbd,num_classes,num_la_blocks,BLOCKS,INT_DIM).to(device)
+        print(model.eval())
+        
+        # loss function
+        criterion = AM_Softmax(m=0.3,s=15,d=256,num_classes=num_classes,use_gpu=use_gpu,epsilon=0.1,smoothing=False)
+        
+        # optimizer
+        optimizer = optim.Adam(model.parameters(),weight_decay=5e-4, lr=lr)
+        
+        # scheduler
+        scheduler = StepLR(optimizer, step_size=1, gamma=gamma)
+        freeze_all_blocks(model,BLOCKS)
+        
+        """
+        Training Begins
+        """
+        print("Training Begins...")
+        model = training_AMS_triplet(model,optimizer,criterion,scheduler,num_epochs,True,BLOCKS,unfreeze_after,train_loader)
+        print("Training Completed")
+        torch.save(model.cpu().state_dict(), out_path)
         
     

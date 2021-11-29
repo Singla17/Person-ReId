@@ -13,6 +13,7 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 
 from model import LATransformerTest as LATransformer
+from model import LATransformerTest_Pooldualsum
 from utils import get_id
 from metrics import rank1, rank5, calc_ap
 
@@ -28,7 +29,8 @@ def parse_args():
                                                         help="Path for the model weights")
     parser.add_argument('-c', '--num_classes', type=int, default=62, required=True, \
                                                         help="Number of classes in trainset")
-        
+    parser.add_argument('-m', '--is_model_baseline', type=bool, default=True, required=True, \
+                                                        help="To choose which model to invoke baseline/improved") 
     args = parser.parse_args()
     return args
 
@@ -44,6 +46,29 @@ def extract_feature(model,dataloaders,device):
         img, label = img.to(device), label.to(device)
 
         output = model(img) # (B, D, H, W) --> B: batch size, HxWxD: feature volume size
+
+        n, c, h, w = img.size()
+        
+        count += n
+        features = torch.cat((features, output.detach().cpu()), 0)
+        idx += 1
+    return features
+
+def extract_feature_flip(model,dataloaders,device):
+    """
+    Used to get the features/representation of queryset and galleryset
+    """
+    features =  torch.FloatTensor()
+    count = 0
+    idx = 0
+    for index,data in enumerate(dataloaders):
+        img, label = data    
+        img, label = img.to(device), label.to(device)
+
+        img_flip= torch.flip(img,[3])
+        output = model(img) # (B, D, H, W) --> B: batch size, HxWxD: feature volume size
+        output_flip = model(img_flip)
+        output = (output+output_flip)/2
 
         n, c, h, w = img.size()
         
@@ -68,6 +93,7 @@ if __name__ == "__main__":
     inp_path = args.inp_path
     wts_path = args.model_path
     num_classes = args.num_classes
+    model_type = args.is_model_baseline
     
     """
     Checks the availibility of a GPU
@@ -75,7 +101,9 @@ if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print("Using {}".format(device))
 
-
+    use_gpu=False
+    if device=='cuda':
+        use_gpu=True
     """
     Load saved model
     """
@@ -87,9 +115,15 @@ if __name__ == "__main__":
     blocks = 12
     int_dim = 768
     lmbd =8
-    model = LATransformer(vit_base, lmbd,num_classes,num_la_blocks,blocks,int_dim).to(device)
-    model.load_state_dict(torch.load(wts_path), strict=False)
-    model.eval()
+    
+    if model_type:
+        model = LATransformer(vit_base, lmbd,num_classes,num_la_blocks,blocks,int_dim).to(device)
+        model.load_state_dict(torch.load(wts_path), strict=False)
+        model.eval()
+    else:
+        model = LATransformerTest_Pooldualsum(vit_base, lmbd,num_classes,num_la_blocks,blocks,int_dim).to(device)
+        model.load_state_dict(torch.load(wts_path), strict=False)
+        model.eval()
     
     batch_size = 1
     
@@ -121,13 +155,23 @@ if __name__ == "__main__":
     query_loader = DataLoader(dataset = image_datasets['query'], batch_size=batch_size, shuffle=False )
     gallery_loader = DataLoader(dataset = image_datasets['gallery'], batch_size=batch_size, shuffle=False)
     
-    # Extract Query Features
     
-    query_feature= extract_feature(model,query_loader,device)
     
-    # Extract Gallery Features
+    if model_type:
     
-    gallery_feature = extract_feature(model,gallery_loader,device)
+        # Extract Query Features
+        query_feature= extract_feature(model,query_loader,device)
+        
+        # Extract Gallery Features 
+        gallery_feature = extract_feature(model,gallery_loader,device)
+    
+    else:
+        # Extract Query Features
+        query_feature= extract_feature_flip(model,query_loader,device)
+        
+        # Extract Gallery Features
+        gallery_feature = extract_feature_flip(model,gallery_loader,device)
+        
     
     # Retrieve labels
     
