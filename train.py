@@ -12,7 +12,7 @@ import time
 import random
 
 from model import LATransformer, LATransformer_AMSpoolsumtriplet
-from utils import AM_Softmax
+from utils import AM_Softmax,TripletLoss
 import timm
 import numpy as np
 from collections import OrderedDict
@@ -371,7 +371,7 @@ if __name__ == "__main__":
         
         # loss function
         criterion = AM_Softmax(m=0.3,s=15,d=256,num_classes=num_classes,use_gpu=use_gpu,epsilon=0.1,smoothing=False)
-        
+        loss2 = TripletLoss()
         # optimizer
         optimizer = optim.Adam(model.parameters(),weight_decay=5e-4, lr=lr)
         
@@ -383,7 +383,7 @@ if __name__ == "__main__":
         Training Begins
         """
         print("Training Begins...")
-        model = training_AMS_triplet(model,optimizer,criterion,scheduler,num_epochs,True,BLOCKS,unfreeze_after,train_loader)
+        model = training_AMS_triplet(model,optimizer,criterion,scheduler,num_epochs,True,BLOCKS,unfreeze_after,train_loader,loss2)
         print("Training Completed")
         torch.save(model.cpu().state_dict(), out_path)
         
