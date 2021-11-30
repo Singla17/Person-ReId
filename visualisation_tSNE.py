@@ -232,3 +232,8 @@ if __name__ == "__main__":
     legend="full",
     alpha=0.3
 )
+    
+    mod_str = "improved"
+    if model_type:
+        mod_str = "baseline"
+    plt.savefig(vis_path+"_"+mod_str+".png")
