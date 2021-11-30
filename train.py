@@ -56,7 +56,7 @@ def parse_args():
                                                         help="Path for the model weights")
     parser.add_argument('-c', '--num_classes', type=int, default=62, required=True, \
                                                         help="Number of classes in trainset")
-    parser.add_argument('-m', '--is_model_baseline', type=bool, default=True, required=True, \
+    parser.add_argument('-m', '--is_model_baseline', type=bool, default="True", required=True, \
                                                         help="To choose which model to invoke baseline/improved")
         
     args = parser.parse_args()
@@ -272,6 +272,11 @@ if __name__ == "__main__":
     out_path = args.out_path
     num_classes = args.num_classes
     model_type = args.is_model_baseline
+    
+    if model_type=="True":
+        model_type=True
+    else:
+        model_type = False
     
     """
     Checks the availibility of a GPU

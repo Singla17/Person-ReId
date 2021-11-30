@@ -9,3 +9,4 @@ run_test_rerank.py
 ams_pool_sum_triplet_output.pth
 base_output.pth
 visualisation/
+data2/
