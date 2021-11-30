@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from model import LATransformerTest as LATransformer
 from model import LATransformerTest_Pooldualsum
 from utils import get_id
-from torchvision.utils import save_image
+from shutil import copyfile
 
 
 def parse_args():
@@ -37,7 +37,7 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def extract_feature(model,dataloaders,device):
+def extract_feature(model,dataloaders,device,image_dataset):
     """
     Used to get the features/representation of queryset and galleryset
     """
@@ -56,10 +56,10 @@ def extract_feature(model,dataloaders,device):
         count += n
         features = torch.cat((features, output.detach().cpu()), 0)
         idx += 1
-        images[index]=img
+        images[index]=image_dataset.imgs[index][0]
     return features,images
 
-def extract_feature_flip(model,dataloaders,device):
+def extract_feature_flip(model,dataloaders,device,image_dataset):
     """
     Used to get the features/representation of queryset and galleryset
     """
@@ -81,7 +81,7 @@ def extract_feature_flip(model,dataloaders,device):
         count += n
         features = torch.cat((features, output.detach().cpu()), 0)
         idx += 1
-        images[index]=img
+        images[index]=image_dataset.imgs[index][0]
     return features,images
 
 def search(index,query: str, k=1):
@@ -168,17 +168,17 @@ if __name__ == "__main__":
     if model_type:
     
         # Extract Query Features
-        query_feature,query_images= extract_feature(model,query_loader,device)
+        query_feature,query_images= extract_feature(model,query_loader,device,image_datasets['query'])
         
         # Extract Gallery Features 
-        gallery_feature,gallery_images = extract_feature(model,gallery_loader,device)
+        gallery_feature,gallery_images = extract_feature(model,gallery_loader,device,image_datasets['gallery'])
     
     else:
         # Extract Query Features
-        query_feature,query_images= extract_feature_flip(model,query_loader,device)
+        query_feature,query_images= extract_feature_flip(model,query_loader,device,image_datasets['query'])
         
         # Extract Gallery Features
-        gallery_feature,gallery_images = extract_feature_flip(model,gallery_loader,device)
+        gallery_feature,gallery_images = extract_feature_flip(model,gallery_loader,device,image_datasets['gallery'])
         
     
     # Retrieve labels
@@ -233,12 +233,12 @@ if __name__ == "__main__":
             pred_img4 = gallery_images[list_preds[0][3]]
             pred_img5 = gallery_images[list_preds[0][4]]
             inp_img = query_images[itr_no]
-            save_image(inp_img[0], vis_path+'/query_'+mod_str+'_'+str(itr_no)+'.png')
-            save_image(pred_img[0], vis_path+'/gallery_'+mod_str+'_1_'+str(itr_no)+'.png')
-            save_image(pred_img2[0], vis_path+'/gallery_'+mod_str+'_2_'+str(itr_no)+'.png')
-            save_image(pred_img3[0], vis_path+'/gallery_'+mod_str+'_3_'+str(itr_no)+'.png')
-            save_image(pred_img4[0], vis_path+'/gallery_'+mod_str+'_4_'+str(itr_no)+'.png')
-            save_image(pred_img5[0], vis_path+'/gallery_'+mod_str+'_5_'+str(itr_no)+'.png')
+            copyfile(inp_img, vis_path+'/query_'+mod_str+'_'+str(itr_no)+'.png')
+            copyfile(pred_img, vis_path+'/gallery_'+mod_str+'_1_'+str(itr_no)+'.png')
+            copyfile(pred_img2, vis_path+'/gallery_'+mod_str+'_2_'+str(itr_no)+'.png')
+            copyfile(pred_img3, vis_path+'/gallery_'+mod_str+'_3_'+str(itr_no)+'.png')
+            copyfile(pred_img4, vis_path+'/gallery_'+mod_str+'_4_'+str(itr_no)+'.png')
+            copyfile(pred_img5, vis_path+'/gallery_'+mod_str+'_5_'+str(itr_no)+'.png')
         itr_no +=1
 
 
