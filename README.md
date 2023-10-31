@@ -2,7 +2,7 @@
 ## Somanshu Singla [2018EE10314]
 
 #### Environement Setup
-For this project a conda based environment is recommeded, that can be created using the environment.yml file, because one module "faiss" has no official unoficial binary on pip.
+For this project a conda based environment is recommeded, that can be created using the environment.yml file, because one module "faiss" has no official binary on pip.
 
 ```
 conda env create -f environment.yml
