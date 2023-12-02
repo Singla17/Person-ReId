@@ -8,7 +8,7 @@ For this project a conda based environment is recommeded, that can be created us
 conda env create -f environment.yml
 ```
 
-This command prepares an evivornment named "reid_f" with python 3.7 and assumes only CPU [can't work with a GPU].     
+This command prepares an environment named "reid_f" with python 3.7 and assumes only CPU [can't work with a GPU].     
 For GPU based systems faiss-cpu can be uninstalled and faiss-gpu can be installed instead.   
 
 #### File Structure
